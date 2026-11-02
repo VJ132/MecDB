@@ -7,17 +7,14 @@
 
 typedef struct {
     char *name;
+    void *data;
     uint64_t column_count;
     char **datatypes;
-} TableMetadata;
-
-typedef struct {
-    void *data;
-    TableMetadata *metadata;
 } Table;
 
 typedef struct {
     char *name;
+    size_t table_count;
     Table **tables;
 } Database;
 
@@ -31,5 +28,7 @@ extern ActiveDatabases active_databases;
 bool create_database(const char *name);
 bool delete_database(const char *name);
 bool rename_database(const char *current_name, const char *new_name);
+
+bool create_table(const char *database_name, const char *table_name);
 
 #endif // MEC_ENGINE_H

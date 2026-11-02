@@ -27,6 +27,7 @@ bool create_database(const char *name) {
         free(new_db);
         return false;
     }
+    new_db->table_count = 0;
 
     memcpy(new_db->name, name, strlen(name) + 1);
     new_db->tables = NULL;
@@ -49,6 +50,25 @@ bool create_database(const char *name) {
     return true;
 }
 
+static inline void free_tables(Database *database) {
+    for (size_t i = 0; i < database->table_count; ++i) {
+        Table *table = database->tables[i];
+
+        free(table->name);
+        free(table->data);
+
+        for (uint64_t j = 0; j < table->column_count; ++j)
+            free(table->datatypes[j]);
+
+        free(table->datatypes);
+        free(table);
+    }
+
+    free(database->tables);
+    database->tables = NULL;
+    database->table_count = 0;
+}
+
 bool delete_database(const char *name) {
     if (name == NULL)
         return false;
@@ -62,8 +82,7 @@ bool delete_database(const char *name) {
     if (i == active_databases.count)
         return false;
 
-    // TODO: impliment function to free all tables.
-    // free_tables(active_databases.databases[i]->tables);
+    free_tables(active_databases.databases[i]);
     free(active_databases.databases[i]->name);
     free(active_databases.databases[i]);
 
@@ -126,25 +145,67 @@ bool rename_database(const char *current_name, const char *new_name) {
     return true;
 }
 
+bool create_table(const char *database_name, const char *table_name) {
+    if (database_name == NULL || table_name == NULL)
+        return false;
+
+    size_t i = 0;
+    for (; i < active_databases.count; ++i) {
+        if (strcmp(active_databases.databases[i]->name, database_name) == 0)
+            break;
+    }
+
+    if (i == active_databases.count)
+        return false;
+
+    Database *database = active_databases.databases[i];
+    Table *new_table = malloc(sizeof(*new_table));
+
+    if (new_table == NULL)
+        return false;
+
+    new_table->name = malloc(strlen(table_name) + 1);
+    if (new_table->name == NULL) {
+        free(new_table);
+        return false;
+    }
+
+    memcpy(new_table->name, table_name, strlen(table_name) + 1);
+    new_table->column_count = 0;
+    new_table->datatypes = NULL;
+    new_table->data = NULL;
+
+    for (size_t i = 0; i < database->table_count; ++i) {
+        if (strcmp(database->tables[i]->name, table_name) == 0) {
+            free(new_table->name);
+            free(new_table);
+            return false;
+        }
+    }
+
+    Table **reallocated_tables = realloc(database->tables, (database->table_count + 1) * sizeof(*database->tables));
+    if (reallocated_tables == NULL) {
+        free(new_table->name);
+        free(new_table);
+        return false;
+    }
+
+    reallocated_tables[database->table_count] = new_table;
+    database->tables = reallocated_tables;
+
+    database->table_count++;
+
+    return true;
+}
+
+
 int main(void) {
     bool result = create_database("TestDB");
     printf("create_database > %d, active_databases_count > %zu\n", result, active_databases.count);
 
-    result = create_database("TestDB");
-    printf("create_database > %d, active_databases_count > %zu\n", result, active_databases.count);
+    result = create_table("TestDB", "TestTable");
+    printf("create_table > %d, table_count > %zu\n", result, active_databases.databases[0]->table_count);
 
-    result = create_database("testdb");
-    printf("create_database > %d, active_databases_count > %zu\n", result, active_databases.count);
-
-    result = delete_database("testdb");
-    printf("delete_database > %d, active_databases_count > %zu\n", result, active_databases.count);
-
-    result = delete_database("testdb");
-    printf("delete_database > %d, active_databases_count > %zu\n", result, active_databases.count);
-
-    result = rename_database("TestDB", "hello");
-    printf("rename_database > %d, active_databases_count > %zu\n", result, active_databases.count);
-
-    result = rename_database("TestDB", "hello");
-    printf("rename_database > %d, active_databases_count > %zu\n", result, active_databases.count);
+    result = create_table("TestDB", "TestTable");
+    printf("create_table > %d, table_count > %zu\n", result, active_databases.databases[0]->table_count);
 }
